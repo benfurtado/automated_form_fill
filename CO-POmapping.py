@@ -20,7 +20,7 @@ for table in doc.tables:
 
     # Identify the number of columns (excluding unwanted columns 14, 15, 16)
     original_columns = len(table.rows[0].cells)
-    valid_columns = [idx for idx in range(original_columns) if idx not in {13,14, 15, 16}]
+    valid_columns = [idx for idx in range(original_columns) if idx not in {13, 14, 15, 16}]
     
     # Create a new table in the output document with the reduced column count
     new_table = new_doc.add_table(rows=0, cols=len(valid_columns))
@@ -29,6 +29,12 @@ for table in doc.tables:
     # Iterate through rows, skipping the first one
     for row_index, row in enumerate(table.rows):
         if row_index == 0:  # Skip the first row
+            continue
+
+        if row_index == 8:  # Skip the second row
+            continue
+        
+        if row_index == 9:  # Skip the third row
             continue
 
         # Add a new row to the output table
