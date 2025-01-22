@@ -1,103 +1,141 @@
-from pydrive2.auth import GoogleAuth
-from pydrive2.drive import GoogleDrive
-from oauth2client.service_account import ServiceAccountCredentials
-from io import BytesIO
-from docx import Document
-import openpyxl
 import os
-import sys
+from openpyxl import load_workbook
+from docx import Document
+from docx.shared import Pt
+from connection import drive, list_files_in_folder
 
-# Path to your service account JSON file
-SERVICE_ACCOUNT_FILE = r'C:\Users\LENOVO\OneDrive\Desktop\PYQs\form filling\automated_form_fill\councellingapp-445207-98a66903ca2d.json'
-
-# Folder ID for Google Drive
-FOLDER_ID = '1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p'
-
-# Define the required scopes
-SCOPES = ['https://www.googleapis.com/auth/drive']
-
-try:
-    # Authenticate using ServiceAccountCredentials
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(SERVICE_ACCOUNT_FILE, SCOPES)
-    gauth = GoogleAuth()
-    gauth.credentials = credentials
-    drive = GoogleDrive(gauth)
-    print("Authenticated successfully using Service Account!")
-except Exception as e:
-    print(f"Error during authentication: {e}")
-    sys.exit(1)  # Exit the script on error
-
-# Query all files in the folder
-query = f"'{FOLDER_ID}' in parents and trashed=false"
-try:
-    file_list = drive.ListFile({'q': query}).GetList()
-    print("Files retrieved successfully!")
-except Exception as e:
-    print(f"Error retrieving files: {e}")
-    sys.exit(1)
-
-# Create a new Word document to save the combined extracted rows
-output_doc = Document()
-
-# Process each file starting with "26"
-for file in file_list:
-    if file['title'].startswith("26"):  # Only process files starting with "26"
+# Function to process DOCX files
+def process_docx_file(file):
+    try:
         print(f"Processing file: {file['title']}")
 
-        file_content = BytesIO()
-        file.GetContentFile(file_content)
-        file_content.seek(0)
+        # Download the file content as binary data
+        file.GetContentFile(file['title'])
 
-        if file['title'].endswith(".docx"):
-            # Process .docx files
-            doc = Document(file_content)
+        # Open the .docx file
+        doc = Document(file['title'])
 
-            for table in doc.tables:
-                if len(table.rows) < 2:
-                    continue
+        # Extract data
+        course_code = None
+        subject = None
+        table_data = []
 
-                header_row = table.rows[1]
-                average_row = table.rows[-1]
+        for para in doc.paragraphs:
+            if "Course Code and Name:" in para.text:
+                line = para.text.split("Course Code and Name:")[1].strip()
+                if "-" in line:
+                    course_code, subject = line.split("-", 1)
+                    course_code = course_code.strip()
+                    subject = subject.strip()
 
-                num_columns = len(header_row.cells)
-                new_table = output_doc.add_table(rows=0, cols=num_columns)
-                new_table.style = 'Table Grid'
+            if "Revised CO-PO Mapping:" in para.text:
+                # Assuming the table follows immediately after the paragraph
+                table_index = doc.paragraphs.index(para) + 1
+                if table_index < len(doc.tables):
+                    table = doc.tables[table_index]
+                    for row in table.rows:
+                        second_column = row.cells[1].text.strip()  # Second column
+                        last_column = row.cells[-1].text.strip()  # Last column
+                        table_data.append((second_column, last_column))
 
-                header_cells = new_table.add_row().cells
-                for col_idx, cell in enumerate(header_row.cells):
-                    header_cells[col_idx].text = cell.text
+        # Return the extracted data
+        return {"course_code": course_code, "subject": subject, "table_data": table_data}
+    except Exception as e:
+        print(f"Error processing DOCX file {file['title']}: {e}")
+        return None
 
-                average_cells = new_table.add_row().cells
-                for col_idx, cell in enumerate(average_row.cells):
-                    average_cells[col_idx].text = cell.text
+# Function to write data directly into output.docx
+def write_to_output_docx(extracted_data, doc):
+    try:
+        # Add course code and subject
+        doc.add_heading('Course Code and Subject:', level=1)
+        doc.add_paragraph(f"Course Code: {extracted_data['course_code']}")
+        doc.add_paragraph(f"Subject: {extracted_data['subject']}")
 
-        elif file['title'].endswith(".xlsx"):
-            # Process .xlsx files
-            wb = openpyxl.load_workbook(file_content)
-            for sheet in wb.sheetnames:
-                ws = wb[sheet]
+        # Add CO-PO Mapping Table
+        doc.add_heading('Revised CO-PO Mapping Table:', level=1)
+        table = doc.add_table(rows=1, cols=2)
+        table.style = 'Table Grid'
 
-                if ws.max_row >= 2:
-                    header_row = ws[2]
-                    average_row = ws[ws.max_row]
+        # Adding headers to the table
+        hdr_cells = table.rows[0].cells
+        hdr_cells[0].text = 'Second Column'
+        hdr_cells[1].text = 'Last Column'
 
-                    num_columns = len(header_row)
-                    new_table = output_doc.add_table(rows=0, cols=num_columns)
-                    new_table.style = 'Table Grid'
+        # Add table data
+        for row in extracted_data['table_data']:
+            row_cells = table.add_row().cells
+            row_cells[0].text = row[0]
+            row_cells[1].text = row[1]
+    except Exception as e:
+        print(f"Error writing data to output DOCX: {e}")
 
-                    header_cells = new_table.add_row().cells
-                    for col_idx, cell in enumerate(header_row):
-                        header_cells[col_idx].text = str(cell.value)
+# Function to recursively process all folders and files
+def process_folders(folder_id, doc):
+    try:
+        file_list = list_files_in_folder(folder_id)
 
-                    average_cells = new_table.add_row().cells
-                    for col_idx, cell in enumerate(average_row):
-                        average_cells[col_idx].text = str(cell.value)
+        for file in file_list:
+            if file['mimeType'] == 'application/vnd.google-apps.folder':  # Folder
+                print(f"Entering folder: {file['title']}")
+                process_folders(file['id'], doc)  # Recursive call for nested folders
+            elif file['title'].startswith("18") and file['title'].endswith(".docx"):  # DOCX files starting with '18'
+                extracted_data = process_docx_file(file)
+                if extracted_data:
+                    write_to_output_docx(extracted_data, doc)
+    except Exception as e:
+        print(f"Error processing folder ID {folder_id}: {e}")
 
-        else:
-            print(f"Skipping unsupported file format: {file['title']}")
+# Function to write Excel data to output.docx
+def process_excel_and_write_to_docx(excel_file_path, doc):
+    try:
+        workbook = load_workbook(excel_file_path)
+        sheet = workbook.active
 
-# Save the output document
-output_file_path = 'Combined_Extracted_Content.docx'
-output_doc.save(output_file_path)
+        # Add heading for Excel data
+        doc.add_heading('Excel Data:', level=1)
 
-print(f"Filtered content saved to {output_file_path}.")
+        # Create a table in Word for the Excel data
+        table = doc.add_table(rows=1, cols=sheet.max_column)
+        table.style = 'Table Grid'
+
+        # Add header row
+        header_cells = table.rows[0].cells
+        for col_index, column in enumerate(sheet.iter_cols(1, sheet.max_column, 1, 1), start=1):
+            header_cells[col_index - 1].text = str(column[0].value)
+
+        # Add Excel data rows
+        for row in sheet.iter_rows(min_row=2, values_only=True):
+            row_cells = table.add_row().cells
+            for col_index, cell_value in enumerate(row):
+                row_cells[col_index].text = str(cell_value) if cell_value is not None else ""
+    except Exception as e:
+        print(f"Error processing Excel file {excel_file_path}: {e}")
+
+# Main function
+def main():
+    try:
+        # Replace 'your-folder-id' with the actual folder ID from Google Drive
+        root_folder_id = '1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p'
+
+        # Create a new DOCX file to save the extracted data
+        output_file_path = 'output.docx'
+        doc = Document()
+        doc.add_heading('Extracted Information', 0)
+
+        # Process folders and files
+        process_folders(root_folder_id, doc)
+
+        # Process Excel file and write data
+        excel_file_path = '14 15 PO and PSO.xlsx'
+        process_excel_and_write_to_docx(excel_file_path, doc)
+
+        # Save the output file
+        doc.save(output_file_path)
+        print(f"Data successfully saved in {output_file_path}")
+        os.startfile(output_file_path)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+if __name__ == "__main__":
+    main()
