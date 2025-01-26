@@ -25,6 +25,7 @@ for file_path in file_names:
             if "Course Code and Name:" in paragraph.text:
                 CourseDetails = paragraph.text.split("Course Code and Name:")[1].strip()
                 if "–" in CourseDetails:
+                    course_code = CourseDetails.split("–")[0].strip()
                     course_name = CourseDetails.split("–")[1].strip()
             if "Class and Semester:" in paragraph.text:
                 ClassDetails = paragraph.text.split("Class and Semester:")[1].strip()
@@ -55,14 +56,14 @@ for file_path in file_names:
     # Iterate through tables in the document
     for table in doc.tables:
         if "Course Outcomes" in table.cell(0, 0).text:  # Check for "Course Outcomes" in the first cell
-            if "MEC 701" in table.cell(0, 1).text:  # Check for "MEC 701" in the second cell
+            if course_code in table.cell(0, 1).text:  # Check for "MEC 701" in the second cell
                 cell_text = table.cell(0, 1).text  # Get the text from the cell
                 for i in range(1, 7):  # Loop through patterns MEC 701.1 to MEC 701.6
-                    pattern = f"MEC 701.{i}"
+                    pattern = f"{course_code}.{i}"
                     if pattern in cell_text:
                         # Extract text associated with the current pattern
                         parts = cell_text.split(pattern, maxsplit=1)
-                        description = parts[1].split(f"MEC 701.{i + 1}")[0].strip() if f"MEC 701.{i + 1}" in parts[1] else parts[1].strip()
+                        description = parts[1].split(f"{course_code}.{i + 1}")[0].strip() if f"{course_code}.{i + 1}" in parts[1] else parts[1].strip()
 
                         # Add a new row to the new table
                         new_row = new_table.add_row()
