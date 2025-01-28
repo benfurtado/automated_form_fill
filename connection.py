@@ -3,7 +3,7 @@ from pydrive2.drive import GoogleDrive
 from oauth2client.service_account import ServiceAccountCredentials
 
 # Path to your service account JSON file
-SERVICE_ACCOUNT_FILE = r'C:\Users\LENOVO\OneDrive\Desktop\PYQs\form filling\automated_form_fill\form-filling-448211-63002aeb7b96.json'
+SERVICE_ACCOUNT_FILE = 'form-filling-448211-63002aeb7b96.json'
 # Define required scopes for Google Drive access
 SCOPES = ['https://www.googleapis.com/auth/drive']
 
