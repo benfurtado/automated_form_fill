@@ -1,138 +1,200 @@
-import os
-from openpyxl import load_workbook
 from docx import Document
-from docx.shared import Pt
+import os
 from connection import drive, list_files_in_folder
+from docx.shared import Inches
+from docx.oxml import OxmlElement
+from docx.shared import Pt
+import merged
+
+# Create a temporary directory for storing intermediate files
+TEMP_DIR = "temp_files"
+os.makedirs(TEMP_DIR, exist_ok=True)
+
+# Initialize a list to store all file titles
+file_titles = []
+
+# Function to adjust the margins of the document
+def adjust_margins(doc):
+    sections = doc.sections
+    for section in sections:
+        # Set the left margin (in inches)
+        section.left_margin = Inches(0.5)  # Set to 0.5 inches or any other value you prefer
+        section.right_margin = Inches(0.5)
+        # You can also adjust other margins (top, right, bottom) if needed
+        # section.top_margin = Inches(1)
+        # section.right_margin = Inches(0.5)
+        # section.bottom_margin = Inches(1)
 
 # Function to process DOCX files
 def process_docx_file(file):
     try:
         print(f"Processing file: {file['title']}")
 
-        # Download the file content as binary data
-        file.GetContentFile(file['title'])
+        # Add the file title to the list
+        file_titles.append(file['title'])
+
+        # Download the file content as binary data to the temp folder
+        temp_file_path = os.path.join(TEMP_DIR, file['title'])
+        file.GetContentFile(temp_file_path)
 
         # Open the .docx file
-        doc = Document(file['title'])
+        doc = Document(temp_file_path)
 
-        # Extract data
+        # Initialize variables to store extracted data
         course_code = None
         subject = None
-        table_data = []
+        average_row = None
 
+        # Extract course code and subject
         for para in doc.paragraphs:
             if "Course Code and Name:" in para.text:
                 line = para.text.split("Course Code and Name:")[1].strip()
-                if "-" in line:
-                    course_code, subject = line.split("-", 1)
+                if "–" in line:
+                    course_code, subject = line.split("\u2013", 1)
                     course_code = course_code.strip()
                     subject = subject.strip()
+                break
 
+        # Locate "Revised CO-PO Mapping:" and extract the "Average" row
+        table_found = False
+        for para_idx, para in enumerate(doc.paragraphs):
             if "Revised CO-PO Mapping:" in para.text:
-                # Assuming the table follows immediately after the paragraph
-                table_index = doc.paragraphs.index(para) + 1
-                if table_index < len(doc.tables):
-                    table = doc.tables[table_index]
-                    for row in table.rows:
-                        second_column = row.cells[1].text.strip()  # Second column
-                        last_column = row.cells[-1].text.strip()  # Last column
-                        table_data.append((second_column, last_column))
+                table_found = True
+                print(f"Found 'Revised CO-PO Mapping:' at line {para_idx + 1}")
 
-        # Return the extracted data
-        return {"course_code": course_code, "subject": subject, "table_data": table_data}
+                # Locate the next table after this paragraph
+                for table in doc.tables:
+                    # Check if the table comes after the paragraph in the document flow
+                    if para.text in table._element.xpath("./preceding-sibling::w:p//w:t/text()"):
+                        print("Found table linked to 'Revised CO-PO Mapping:'")
+
+                        # Extract the "Average" row
+                        for row in table.rows:
+                            row_text = [cell.text.strip() for cell in row.cells]
+                            if "Average" in row_text:
+                                # Exclude the "Average" column (first column)
+                                average_row = row_text[1:]
+                                break
+                        break
+                break
+
+        if not table_found:
+            print("No 'Revised CO-PO Mapping:' section found.")
+        elif not average_row:
+            print("No 'Average' row found in the table linked to 'Revised CO-PO Mapping:'.")
+
+        return {"course_code": course_code, "subject": subject, "average_row": average_row}
     except Exception as e:
         print(f"Error processing DOCX file {file['title']}: {e}")
         return None
 
-# Function to write data directly into output.docx
-def write_to_output_docx(extracted_data, doc):
+# Function to write extracted data into a properly formatted table
+def write_data_to_table(extracted_data, doc):
     try:
-        # Add course code and subject
-        doc.add_heading('Course Code and Subject:', level=1)
-        doc.add_paragraph(f"Course Code: {extracted_data['course_code']}")
-        doc.add_paragraph(f"Subject: {extracted_data['subject']}")
+        # Define headers for the table
+        headers = [
+            "Sr No", "Course Code", "Subject", "PO1", "PO2", "PO3", "PO4",
+            "PO5", "PO6", "PO7", "PO8", "PO9", "PO10", "PO11", "PO12",
+            "PSO1", "PSO2", "PSO3"
+        ]
 
-        # Add CO-PO Mapping Table
-        doc.add_heading('Revised CO-PO Mapping Table:', level=1)
-        table = doc.add_table(rows=1, cols=2)
-        table.style = 'Table Grid'
+        # Define column widths in inches
+        column_widths = [
+            Inches(0.9),  # Sr No
+            Inches(1.9),  # Course Code
+            Inches(2.9),  # Subject
+        ] + [Inches(0.9)] * (len(headers) - 3)  # Uniform width for PO/PSO columns
 
-        # Adding headers to the table
-        hdr_cells = table.rows[0].cells
-        hdr_cells[0].text = 'Second Column'
-        hdr_cells[1].text = 'Last Column'
+        # Create a new table or use the existing one
+        if not doc.tables:
+            table = doc.add_table(rows=1, cols=len(headers))
+            table.style = "Table Grid"
+            table.alignment = 0  # Align to left
 
-        # Add table data
-        for row in extracted_data['table_data']:
-            row_cells = table.add_row().cells
-            row_cells[0].text = row[0]
-            row_cells[1].text = row[1]
+            # Populate the header row
+            for col_idx, header in enumerate(headers):
+                cell = table.cell(0, col_idx)
+                cell.text = header
+
+        else:
+            table = doc.tables[0]  # Use the first existing table
+
+        # Adjust column widths
+        for row in table.rows:
+            for col_idx, cell in enumerate(row.cells):
+                if col_idx < len(column_widths):
+                    cell.width = column_widths[col_idx]
+
+        # Populate table rows with extracted data
+        start_sr_no = len(table.rows)  # Current number of rows, accounting for the header
+        for idx, data in enumerate(extracted_data, start=start_sr_no):
+            row = table.add_row().cells
+            row[0].text = str(idx)  # Sr No
+            row[1].text = data.get("course_code", " ")  # Course Code
+            row[2].text = data.get("subject", " ")  # Subject
+
+            # Fill PO1 to PSO3 values
+            average_row = data.get("average_row", [])
+            for col_idx, po_value in enumerate(average_row, start=3):
+                if col_idx < len(headers):
+                    row[col_idx].text = po_value or " "
+
+        # Apply formatting to each cell
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.size = Pt(8)  # Set font size to 8 for a cleaner fit
+
+        print("Table successfully updated with formatted widths and data.")
     except Exception as e:
-        print(f"Error writing data to output DOCX: {e}")
+        print(f"Error writing data to table: {e}")
 
-# Function to recursively process all folders and files
+# Function to process folders and files recursively
 def process_folders(folder_id, doc):
     try:
         file_list = list_files_in_folder(folder_id)
+        extracted_data = []
 
         for file in file_list:
-            if file['mimeType'] == 'application/vnd.google-apps.folder':  # Folder
+            if file["mimeType"] == "application/vnd.google-apps.folder":  # Folder
                 print(f"Entering folder: {file['title']}")
-                process_folders(file['id'], doc)  # Recursive call for nested folders
-            elif file['title'].startswith("18") and file['title'].endswith(".docx"):  # DOCX files starting with '18'
-                extracted_data = process_docx_file(file)
-                if extracted_data:
-                    write_to_output_docx(extracted_data, doc)
+                process_folders(file["id"], doc)
+            elif file["title"].startswith("18") and file["title"].endswith(".docx"):  # DOCX files starting with '18'
+                data = process_docx_file(file)
+                if data:
+                    extracted_data.append(data)
+
+        # Write data to the document after processing all files in this folder
+        if extracted_data:
+            write_data_to_table(extracted_data, doc)
+
     except Exception as e:
         print(f"Error processing folder ID {folder_id}: {e}")
-
-# Function to write Excel data to output.docx
-def process_excel_and_write_to_docx(excel_file_path, doc):
-    try:
-        workbook = load_workbook(excel_file_path)
-        sheet = workbook.active
-
-        # Add heading for Excel data
-        doc.add_heading('Excel Data:', level=1)
-
-        # Create a table in Word for the Excel data
-        table = doc.add_table(rows=1, cols=sheet.max_column)
-        table.style = 'Table Grid'
-
-        # Add header row
-        header_cells = table.rows[0].cells
-        for col_index, column in enumerate(sheet.iter_cols(1, sheet.max_column, 1, 1), start=1):
-            header_cells[col_index - 1].text = str(column[0].value)
-
-        # Add Excel data rows
-        for row in sheet.iter_rows(min_row=2, values_only=True):
-            row_cells = table.add_row().cells
-            for col_index, cell_value in enumerate(row):
-                row_cells[col_index].text = str(cell_value) if cell_value is not None else ""
-    except Exception as e:
-        print(f"Error processing Excel file {excel_file_path}: {e}")
 
 # Main function
 def main():
     try:
-        # Replace 'your-folder-id' with the actual folder ID from Google Drive
-        root_folder_id = '1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p'
+        root_folder_id = "1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p"
+        output_file_path = "output.docx"
 
-        # Create a new DOCX file to save the extracted data
-        output_file_path = 'output.docx'
-        doc = Document()
-        doc.add_heading('Extracted Information', 0)
+        doc = Document('output.docx')
+        adjust_margins(doc)  # Adjust margins to reduce the left margin
 
-        # Process folders and files
+        merged.CO_Table()
+
+        doc.add_heading("Extracted Information", 0)
+
         process_folders(root_folder_id, doc)
-
-        # Process Excel file and write data
-        excel_file_path = '14 15 PO and PSO.xlsx'
-        process_excel_and_write_to_docx(excel_file_path, doc)
-
-        # Save the output file
         doc.save(output_file_path)
         print(f"Data successfully saved in {output_file_path}")
+
+        # Print all file titles
+        print("\nProcessed File Titles:")
+        for title in file_titles:
+            print(title)
+
+        # Auto-open the output file
         os.startfile(output_file_path)
     except Exception as e:
         print(f"An error occurred: {e}")
