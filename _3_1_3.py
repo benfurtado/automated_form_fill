@@ -1,7 +1,9 @@
 from docx import Document
 import os
 from connection import drive, list_files_in_folder
-from docx.shared import Inches, Pt
+from docx.shared import Inches
+from docx.oxml import OxmlElement
+from docx.shared import Pt
 
 # Create a temporary directory for storing intermediate files
 TEMP_DIR = "temp_files"
@@ -17,6 +19,10 @@ def adjust_margins(doc):
         # Set the left margin (in inches)
         section.left_margin = Inches(0.5)  # Set to 0.5 inches or any other value you prefer
         section.right_margin = Inches(0.5)
+        # You can also adjust other margins (top, right, bottom) if needed
+        # section.top_margin = Inches(1)
+        # section.right_margin = Inches(0.5)
+        # section.bottom_margin = Inches(1)
 
 # Function to process DOCX files
 def process_docx_file(file):
@@ -75,7 +81,7 @@ def process_docx_file(file):
             print("No 'Revised CO-PO Mapping:' section found.")
         elif not average_row:
             print("No 'Average' row found in the table linked to 'Revised CO-PO Mapping:'.")
-        
+
         return {"course_code": course_code, "subject": subject, "average_row": average_row}
     except Exception as e:
         print(f"Error processing DOCX file {file['title']}: {e}")
@@ -98,34 +104,30 @@ def write_data_to_table(extracted_data, doc):
             Inches(2.9),  # Subject
         ] + [Inches(0.9)] * (len(headers) - 3)  # Uniform width for PO/PSO columns
 
-        # Find the existing table with fewer than 6 rows or create a new table
-        table_to_use = None
-        for table in doc.tables:
-            if len(table.rows) < 6:
-                table_to_use = table
-                break
-
-        # If no existing table with fewer than 6 rows is found, create a new one
-        if table_to_use is None:
-            table_to_use = doc.add_table(rows=1, cols=len(headers))
-            table_to_use.style = "Table Grid"
-            table_to_use.alignment = 0  # Align to left
+        # Create a new table or use the existing one
+        if not doc.tables:
+            table = doc.add_table(rows=1, cols=len(headers))
+            table.style = "Table Grid"
+            table.alignment = 0  # Align to left
 
             # Populate the header row
             for col_idx, header in enumerate(headers):
-                cell = table_to_use.cell(0, col_idx)
+                cell = table.cell(0, col_idx)
                 cell.text = header
 
+        else:
+            table = doc.tables[0]  # Use the first existing table
+
         # Adjust column widths
-        for row in table_to_use.rows:
+        for row in table.rows:
             for col_idx, cell in enumerate(row.cells):
                 if col_idx < len(column_widths):
                     cell.width = column_widths[col_idx]
 
         # Populate table rows with extracted data
-        start_sr_no = len(table_to_use.rows)  # Current number of rows, accounting for the header
+        start_sr_no = len(table.rows)  # Current number of rows, accounting for the header
         for idx, data in enumerate(extracted_data, start=start_sr_no):
-            row = table_to_use.add_row().cells
+            row = table.add_row().cells
             row[0].text = str(idx)  # Sr No
             row[1].text = data.get("course_code", " ")  # Course Code
             row[2].text = data.get("subject", " ")  # Subject
@@ -137,7 +139,7 @@ def write_data_to_table(extracted_data, doc):
                     row[col_idx].text = po_value or " "
 
         # Apply formatting to each cell
-        for row in table_to_use.rows:
+        for row in table.rows:
             for cell in row.cells:
                 for paragraph in cell.paragraphs:
                     for run in paragraph.runs:
@@ -175,13 +177,11 @@ def main():
         root_folder_id = "1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p"
         output_file_path = "output.docx"
 
-        # Check if the output file exists
-        if os.path.exists(output_file_path):
-            doc = Document(output_file_path)  # Open the existing document
-        else:
-            doc = Document()  # Create a new document
-            adjust_margins(doc)  # Adjust margins to reduce the left margin
-            doc.add_heading("Extracted Information", 0)  # Add a heading if it's a new document
+        doc = Document()
+        adjust_margins(doc)  # Adjust margins to reduce the left margin
+        paragraph = doc.add_paragraph()
+        run = paragraph.add_run("3.1.3 Program level Course-PO matrix of all courses INCLUDING first year courses (10)")
+        run.bold = True
 
         process_folders(root_folder_id, doc)
         doc.save(output_file_path)
@@ -197,5 +197,5 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
 
-if __name__ == "__main__":
+if __name__=="__main__":
     main()
