@@ -175,7 +175,7 @@ def process_folders(folder_id, doc):
 def main():
     try:
         root_folder_id = "1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p"
-        output_file_path = "output.docx"
+        output_file_path = "output1.docx"
 
         doc = Document()
         adjust_margins(doc)  # Adjust margins to reduce the left margin
