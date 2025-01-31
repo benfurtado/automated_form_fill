@@ -48,7 +48,7 @@ def process_docx_file(file):
         for para in doc.paragraphs:
             if "Course Code and Name:" in para.text:
                 line = para.text.split("Course Code and Name:")[1].strip()
-                if "–" in line:
+                if "-" in line:
                     course_code, subject = line.split("\u2013", 1)
                     course_code = course_code.strip()
                     subject = subject.strip()

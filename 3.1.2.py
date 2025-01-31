@@ -1,53 +1,96 @@
-import os
 from docx import Document
+import os
+import re
+import subprocess
 
-# Open the source Word document
-source_file_path = '22 co-po mapping corelation matrix.docx'  # Update with your file name
-doc = Document(source_file_path)
-
-# Create a new Word document to save content
-new_doc = Document()
-
-# Extract and copy text content
-for paragraph in doc.paragraphs:
-    if paragraph.text.strip():  # Ignore empty paragraphs
-        new_doc.add_paragraph(paragraph.text, style=paragraph.style)
-
-# Extract and process table content
-for table in doc.tables:
-    if len(table.rows) == 0:  # Skip empty tables
-        continue
-
-    # Identify the number of columns (excluding unwanted columns 14, 15, 16)
-    original_columns = len(table.rows[0].cells)
-    valid_columns = [idx for idx in range(original_columns) if idx not in {13, 14, 15, 16}]
+def extract_course_info(paragraphs):
+    course_info = {
+        "course_code": "Not Found",
+        "class_semester": "Not Found"
+    }
     
-    # Create a new table in the output document with the reduced column count
-    new_table = new_doc.add_table(rows=0, cols=len(valid_columns))
-    new_table.style = 'Table Grid'
+    for para in paragraphs:
+        text = para.text.strip()
+        if "Course Code and Name:" in text:
+            course_info["course_code"] = text.split(":", 1)[1].strip().replace("\u2013", "-")
+        elif "Class and Semester:" in text:
+            course_info["class_semester"] = text.split(":", 1)[1].strip()
+    return course_info
 
-    # Iterate through rows, skipping the first one
-    for row_index, row in enumerate(table.rows):
-        if row_index == 0:  # Skip the first row
-            continue
+def extract_revised_co_po_table(doc):
+    """Extracts the table following the 'Revised CO-PO Mapping' heading."""
+    table_data = []
+    
+    # Find the paragraph that mentions "Revised CO-PO Mapping"
+    target_para_found = False
+    for para in doc.paragraphs:
+        if "revised co-po mapping" in para.text.lower():
+            target_para_found = True
+            break
+    
+    if not target_para_found:
+        return table_data
+    
+    # Find the first table in the document
+    if doc.tables:
+        table = doc.tables[6]  # Assuming the 7th table is the required one
+        for row in table.rows:
+            cells = [cell.text.strip() for cell in row.cells]
+            if cells and any(x in cells[0].lower() for x in ["total", "average"]):
+                continue
+            if any(cell.strip() for cell in cells):
+                table_data.append(cells)
+    
+    return table_data
 
-        if row_index == 8:  # Skip the second row
-            continue
+def process_docx_files():
+    """Processes all .docx files in 'temp_files' and creates a combined report."""
+    output_doc = Document()
+    output_doc.add_heading('3.1.2 CO-PO and CO-PSO matrices', 0)
+    
+    temp_dir = "temp_files"
+    files = sorted([f for f in os.listdir(temp_dir) if f.endswith(".docx") and f.startswith("18")],
+                   key=lambda x: re.findall(r'\d{4}-\d{2}', x))
+    
+    for filename in files:
+        file_path = os.path.join(temp_dir, filename)
+        doc = Document(file_path)
         
-        if row_index == 9:  # Skip the third row
-            continue
+        # Extract course info
+        course_info = extract_course_info(doc.paragraphs)
+        
+        # Extract CO-PO table
+        co_po_table = extract_revised_co_po_table(doc)
+        
+        # Format filename with year
+        year_match = re.findall(r'\d{4}-\d{2}', filename)
+        year = year_match[0] if year_match else "Unknown"
+        heading = f"{filename} ({year})"
+        
+        # Add content to the document
+        output_doc.add_heading(heading, level=1)
+        output_doc.add_paragraph(f"Course Code and Name: {course_info['course_code']}")
+        output_doc.add_paragraph(f"Class and Semester: {course_info['class_semester']}")
+        
+        if co_po_table:
+            table = output_doc.add_table(rows=len(co_po_table)-1, cols=len(co_po_table[0]))
+            table.style = "Table Grid"
+            
+            # Data rows (skip the first row)
+            for row_idx, row in enumerate(co_po_table[1:]):
+                new_row = table.rows[row_idx].cells
+                for i, cell in enumerate(row):
+                    new_row[i].text = cell
+        else:
+            output_doc.add_paragraph("Revised CO-PO Mapping table not found").italic = True
+        
+        output_doc.add_page_break()
+    
+    # Save and open the final document
+    output_file = "combined_report.docx"
+    output_doc.save(output_file)
+    print(f"\nReport saved: {output_file}")
+    subprocess.call(['open', output_file])
 
-        # Add a new row to the output table
-        new_row = new_table.add_row().cells
-
-        # Add only the valid columns
-        for new_idx, original_idx in enumerate(valid_columns):
-            new_row[new_idx].text = row.cells[original_idx].text
-
-# Save the new document
-output_file_path = 'Filtered_Content.docx'  # Update with your desired output file name
-new_doc.save(output_file_path)
-
-# Automatically open the saved Word document
-print(f"Content saved to {output_file_path}. Opening the file...")
-os.startfile(output_file_path)
+if __name__ == "__main__":
+    process_docx_files()
