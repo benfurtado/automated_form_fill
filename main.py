@@ -1,22 +1,56 @@
+from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
+import os
 import _3_1
-import _3_1_3
 import _3_1_1
 import _3_1_2
-from docx import Document
-import os
+import _3_1_3
 
+
+
+# Function to add bold text with line spacing
+def add_text_to_doc(file, text):
+    doc = Document(file)
+    
+    # Add a blank paragraph for spacing above
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(12)  # 12 points spacing above
+    p.paragraph_format.space_after = Pt(12)   # 12 points spacing below
+    
+    # Add the bold text
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    run.bold = True  # Make the text bold
+    run.font.size = Pt(14)  # Set font size to 14 pt
+    
+    # Add a blank paragraph for spacing below
+    p = doc.add_paragraph()
+    p.paragraph_format.space_before = Pt(12)  # 12 points spacing above
+    p.paragraph_format.space_after = Pt(12)   # 12 points spacing below
+    
+    doc.save(file)
+
+# File name
 file = "output.docx"
 
+# Create a new document if it doesn't exist
+if not os.path.exists(file):
+    Document().save(file)
+
+# Add text and call functions
+add_text_to_doc(file, "3.1 Establish the correlation between the courses and the Program Outcomes (POs) and Program Specific Outcomes (PSOs) (20)\n(Program Outcomes as mentioned in Annexure I and Program Specific Outcomes as defined by the Program)")
 _3_1.PO_PSO()
+
+add_text_to_doc(file, "3.1.1 Course Outcomes (COs) (SAR should include course outcomes of one course from each semester of study, however, should be prepared for all courses and made available as evidence, if asked) (05)\nNote: Number of Outcomes for a Course is expected to be around 6.")
 _3_1_1.CO_Table()
+
+add_text_to_doc(file, "3.1.2 CO-PO matrices of courses selected in 3.1.1 (six matrices to be mentioned; one per semester from 3rd to 8th semester) (05)")
 _3_1_2.process_docx_files()
+
+add_text_to_doc(file, "3.1.3 Program level Course-PO matrix of all courses INCLUDING first year courses (10)")
 _3_1_3.main()
-
-# Adjust margins
-doc = Document(file)
-
-# Save the changes to the document
-doc.save(file)
 
 print(f"Data successfully saved in {file}")
 os.startfile(file)

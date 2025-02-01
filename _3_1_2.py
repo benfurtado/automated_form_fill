@@ -1,6 +1,8 @@
 from docx import Document
 import os
 import re
+from docx.shared import Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 def extract_course_info(paragraphs):
     course_info = {
@@ -45,7 +47,6 @@ def extract_revised_co_po_table(doc):
 def process_docx_files():
     """Processes all .docx files in 'temp_files' and creates a combined report."""
     output_doc = Document('output.docx')
-    output_doc.add_heading('3.1.2 CO-PO and CO-PSO matrices', 0)
     
     temp_dir = "temp_files"
     files = sorted([f for f in os.listdir(temp_dir) if f.endswith(".docx") and f.startswith("18")],
@@ -66,10 +67,15 @@ def process_docx_files():
         year = year_match[0] if year_match else "Unknown"
         heading = f"{filename} ({year})"
         
+        # Add an empty line above the existing paragraph
+        output_doc.add_paragraph()
+
         # Add content to the document
-        output_doc.add_heading(heading, level=1)
-        output_doc.add_paragraph(f"Course Code and Name: {course_info['course_code']}")
-        output_doc.add_paragraph(f"Class and Semester: {course_info['class_semester']}")
+        para = output_doc.add_paragraph(f"Class: {course_info['class_semester']} Subject: {course_info['course_code']}")
+        for run in para.runs:
+            run.bold = True
+            run.font.size = Pt(14)
+        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
         if co_po_table:
             table = output_doc.add_table(rows=len(co_po_table)-1, cols=len(co_po_table[0]))
