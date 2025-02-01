@@ -4,7 +4,6 @@ from connection import drive, list_files_in_folder
 from docx.shared import Inches
 from docx.oxml import OxmlElement
 from docx.shared import Pt
-import merged
 
 # Create a temporary directory for storing intermediate files
 TEMP_DIR = "temp_files"
@@ -38,7 +37,7 @@ def process_docx_file(file):
         file.GetContentFile(temp_file_path)
 
         # Open the .docx file
-        doc = Document(temp_file_path)
+        doc = Document(temp_file_path) 
 
         # Initialize variables to store extracted data
         course_code = None
@@ -172,32 +171,56 @@ def process_folders(folder_id, doc):
     except Exception as e:
         print(f"Error processing folder ID {folder_id}: {e}")
 
+
+
+
+
+def combined(doc):
+    combined_path = "output.docx"
+
+    if os.path.exists(combined_path):
+        combined_doc = Document(combined_path)  # Load existing document
+    else:
+        combined_doc = Document()  # Create new document if it doesn't exist
+
+    for para in doc.paragraphs:
+        combined_doc.add_paragraph(para.text)
+
+    for table in doc.tables:
+        # Create a new table with the same number of rows and columns
+        new_table = combined_doc.add_table(rows=len(table.rows), cols=len(table.columns))
+        new_table.style = "Table Grid"  # Keep formatting
+
+        # Copy table contents
+        for i, row in enumerate(table.rows):
+            for j, cell in enumerate(row.cells):
+                new_table.cell(i, j).text = cell.text  # Copy cell text
+
+    combined_doc.save(combined_path)
+    print(f"Combined document saved as {combined_path}")
+
+
+
 # Main function
 def main():
     try:
         root_folder_id = "1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p"
-        output_file_path = "output.docx"
+        file_path = "temp.docx"
 
-        doc = Document('output.docx')
+        doc = Document()
         adjust_margins(doc)  # Adjust margins to reduce the left margin
-
-        merged.CO_Table()
-
-        doc.add_heading("Extracted Information", 0)
+        paragraph = doc.add_paragraph()
+        run = paragraph.add_run("3.1.3 Program level Course-PO matrix of all courses INCLUDING first year courses (10)")
+        run.bold = True
 
         process_folders(root_folder_id, doc)
-        doc.save(output_file_path)
-        print(f"Data successfully saved in {output_file_path}")
+        doc.save(file_path)
+        print(f"Data successfully saved in {file_path}")
 
-        # Print all file titles
-        print("\nProcessed File Titles:")
-        for title in file_titles:
-            print(title)
+        combined(doc)
+        combined_path = "output.docx"
 
         # Auto-open the output file
-        os.startfile(output_file_path)
+        os.startfile(combined_path)
     except Exception as e:
         print(f"An error occurred: {e}")
-
-if __name__ == "__main__":
-    main()

@@ -85,4 +85,3 @@ def CO_Table():
     # Save everything into one document
     output_file = 'output.docx'
     new_doc.save(output_file)
-    os.startfile(output_file)
