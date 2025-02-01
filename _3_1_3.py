@@ -210,17 +210,13 @@ def main():
         doc = Document()
         adjust_margins(doc)  # Adjust margins to reduce the left margin
         paragraph = doc.add_paragraph()
-        run = paragraph.add_run("3.1.3 Program level Course-PO matrix of all courses INCLUDING first year courses (10)")
+        run = paragraph.add_run("3.1.3 Program level Course-PO matrix of all courses INCLUDING first-year courses (10)")
         run.bold = True
 
         process_folders(root_folder_id, doc)
         doc.save(file_path)
         print(f"Data successfully saved in {file_path}")
-
         combined(doc)
-        combined_path = "output.docx"
 
-        # Auto-open the output file
-        os.startfile(combined_path)
     except Exception as e:
         print(f"An error occurred: {e}")
