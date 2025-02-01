@@ -173,7 +173,20 @@ def process_folders(folder_id, doc):
 
 
 
+# Function to adjust margins of a specific page (by adding a section break)
+def adjust_page_margins(doc):
+    sections = doc.sections
+    # Create a new section break (next page)
+    new_section = doc.add_paragraph()  # This is where the section break happens.
+    run = new_section.add_run()
+    run.add_break()  # Adding a section break (next page)
+    
+    # Adjust margins only for this section (the next page)
+    new_section = doc.sections[-1]  # Get the newly added section
+    new_section.left_margin = Inches(0.5)  # Set to 0.5 inches or your preferred value
+    new_section.right_margin = Inches(0.5)
 
+# Function to combine content from one document and apply custom page margins
 def combined(doc):
     combined_path = "output.docx"
 
@@ -192,6 +205,10 @@ def combined(doc):
         table_xml = table._element  # Get the table's XML structure
         combined_doc._element.append(table_xml)  # Append it to the new document
 
+    # Adjust margins specifically for the page
+    adjust_page_margins(combined_doc)
+
+    # Save the combined document
     combined_doc.save(combined_path)
     print(f"Combined document saved as {combined_path}")
 
