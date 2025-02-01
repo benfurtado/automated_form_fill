@@ -37,7 +37,7 @@ def process_docx_file(file):
         file.GetContentFile(temp_file_path)
 
         # Open the .docx file
-        doc = Document(temp_file_path)
+        doc = Document(temp_file_path) 
 
         # Initialize variables to store extracted data
         course_code = None
@@ -171,31 +171,66 @@ def process_folders(folder_id, doc):
     except Exception as e:
         print(f"Error processing folder ID {folder_id}: {e}")
 
+
+
+# Function to adjust margins of a specific page (by adding a section break)
+def adjust_page_margins(doc):
+    sections = doc.sections
+    # Create a new section break (next page)
+    new_section = doc.add_paragraph()  # This is where the section break happens.
+    run = new_section.add_run()
+    run.add_break()  # Adding a section break (next page)
+    
+    # Adjust margins only for this section (the next page)
+    new_section = doc.sections[-1]  # Get the newly added section
+    new_section.left_margin = Inches(0.5)  # Set to 0.5 inches or your preferred value
+    new_section.right_margin = Inches(0.5)
+
+# Function to combine content from one document and apply custom page margins
+def combined(doc):
+    combined_path = "output.docx"
+
+    combined_doc = Document(combined_path)  # Load existing document
+
+    # Append paragraphs from the imported doc
+    for para in doc.paragraphs:
+        combined_doc.add_paragraph(para.text)
+        combined_doc.paragraphs[-1].style = "heading 1"
+        combined_doc.paragraphs[-1].style.font.color.rgb = None  # Remove any color
+        combined_doc.paragraphs[-1].style.font.size = Pt(12)  # Set custom font size
+        combined_doc.paragraphs[-1].style.font.name = "Arial"  # Set custom font
+
+    # Append tables from the imported doc
+    for table in doc.tables:
+        table_xml = table._element  # Get the table's XML structure
+        combined_doc._element.append(table_xml)  # Append it to the new document
+        
+
+        
+
+    # Adjust margins specifically for the page
+    adjust_page_margins(combined_doc)
+
+    # Save the combined document
+    combined_doc.save(combined_path)
+    print(f"Combined document saved as {combined_path}")
+
+    
+
 # Main function
 def main():
     try:
         root_folder_id = "1Bbp_TRb2dt-oRcKo3C7vHK7AHf0Hy90p"
-        output_file_path = "output1.docx"
+        file_path = "temp.docx"
 
         doc = Document()
         adjust_margins(doc)  # Adjust margins to reduce the left margin
         paragraph = doc.add_paragraph()
-        run = paragraph.add_run("3.1.3 Program level Course-PO matrix of all courses INCLUDING first year courses (10)")
-        run.bold = True
 
         process_folders(root_folder_id, doc)
-        doc.save(output_file_path)
-        print(f"Data successfully saved in {output_file_path}")
+        doc.save(file_path)
+        print(f"Data successfully saved in {file_path}")
+        combined(doc)
 
-        # Print all file titles
-        print("\nProcessed File Titles:")
-        for title in file_titles:
-            print(title)
-
-        # Auto-open the output file
-        os.startfile(output_file_path)
     except Exception as e:
         print(f"An error occurred: {e}")
-
-if __name__=="__main__":
-    main()
