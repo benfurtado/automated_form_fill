@@ -174,32 +174,28 @@ def process_folders(folder_id, doc):
 
 
 
-
 def combined(doc):
     combined_path = "output.docx"
 
     if os.path.exists(combined_path):
         combined_doc = Document(combined_path)  # Load existing document
     else:
-        combined_doc = Document()  # Create new document if it doesn't exist
+        combined_doc = Document()  # Create a new document if it doesn't exist
 
+    # Append paragraphs from the imported doc
     for para in doc.paragraphs:
         combined_doc.add_paragraph(para.text)
+        combined_doc.paragraphs[-1].style = "heading 1"
 
+    # Append tables from the imported doc
     for table in doc.tables:
-        # Create a new table with the same number of rows and columns
-        new_table = combined_doc.add_table(rows=len(table.rows), cols=len(table.columns))
-        new_table.style = "Table Grid"  # Keep formatting
-
-        # Copy table contents
-        for i, row in enumerate(table.rows):
-            for j, cell in enumerate(row.cells):
-                new_table.cell(i, j).text = cell.text  # Copy cell text
+        table_xml = table._element  # Get the table's XML structure
+        combined_doc._element.append(table_xml)  # Append it to the new document
 
     combined_doc.save(combined_path)
     print(f"Combined document saved as {combined_path}")
 
-
+    
 
 # Main function
 def main():
