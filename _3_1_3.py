@@ -190,20 +190,23 @@ def adjust_page_margins(doc):
 def combined(doc):
     combined_path = "output.docx"
 
-    if os.path.exists(combined_path):
-        combined_doc = Document(combined_path)  # Load existing document
-    else:
-        combined_doc = Document()  # Create a new document if it doesn't exist
+    combined_doc = Document(combined_path)  # Load existing document
 
     # Append paragraphs from the imported doc
     for para in doc.paragraphs:
         combined_doc.add_paragraph(para.text)
         combined_doc.paragraphs[-1].style = "heading 1"
+        combined_doc.paragraphs[-1].style.font.color.rgb = None  # Remove any color
+        combined_doc.paragraphs[-1].style.font.size = Pt(12)  # Set custom font size
+        combined_doc.paragraphs[-1].style.font.name = "Arial"  # Set custom font
 
     # Append tables from the imported doc
     for table in doc.tables:
         table_xml = table._element  # Get the table's XML structure
         combined_doc._element.append(table_xml)  # Append it to the new document
+        
+
+        
 
     # Adjust margins specifically for the page
     adjust_page_margins(combined_doc)
