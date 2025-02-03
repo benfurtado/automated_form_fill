@@ -1,7 +1,5 @@
 from docx import Document
 from docx.shared import Pt
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
 import os
 import _3_1
 import _3_1_1
@@ -9,28 +7,22 @@ import _3_1_2
 import _3_1_3
 
 
-
 # Function to add bold text with line spacing
 def add_text_to_doc(file, text):
     doc = Document(file)
-    
-    # Add a blank paragraph for spacing above
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)  # 12 points spacing above
-    p.paragraph_format.space_after = Pt(12)   # 12 points spacing below
-    
-    # Add the bold text
+
+    # Add formatted text
     p = doc.add_paragraph()
     run = p.add_run(text)
-    run.bold = True  # Make the text bold
-    run.font.size = Pt(14)  # Set font size to 14 pt
-    
-    # Add a blank paragraph for spacing below
-    p = doc.add_paragraph()
-    p.paragraph_format.space_before = Pt(12)  # 12 points spacing above
-    p.paragraph_format.space_after = Pt(12)   # 12 points spacing below
-    
+    run.bold = True
+    run.font.size = Pt(14)
+
+    # Set paragraph spacing
+    p.paragraph_format.space_before = Pt(12)
+    p.paragraph_format.space_after = Pt(12)
+
     doc.save(file)
+
 
 # File name
 file = "output.docx"
@@ -53,4 +45,12 @@ add_text_to_doc(file, "3.1.3 Program level Course-PO matrix of all courses INCLU
 _3_1_3.main()
 
 print(f"Data successfully saved in {file}")
-os.startfile(file)
+
+# Open the file in a platform-independent way
+import platform
+if platform.system() == "Windows":
+    os.startfile(file)
+elif platform.system() == "Darwin":  # macOS
+    os.system(f"open {file}")
+elif platform.system() == "Linux":
+    os.system(f"xdg-open {file}")

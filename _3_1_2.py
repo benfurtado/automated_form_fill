@@ -5,6 +5,7 @@ from docx.shared import Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 def extract_course_info(paragraphs):
+    """Extracts course code and class/semester from document paragraphs."""
     course_info = {
         "course_code": "Not Found",
         "class_semester": "Not Found"
@@ -16,6 +17,7 @@ def extract_course_info(paragraphs):
             course_info["course_code"] = text.split(":", 1)[1].strip().replace("\u2013", "-")
         elif "Class and Semester:" in text:
             course_info["class_semester"] = text.split(":", 1)[1].strip()
+    
     return course_info
 
 def extract_revised_co_po_table(doc):
@@ -46,11 +48,14 @@ def extract_revised_co_po_table(doc):
 
 def process_docx_files():
     """Processes all .docx files in 'temp_files' and creates a combined report."""
-    output_doc = Document('output.docx')
+    output_file = "output.docx"
+    output_doc = Document(output_file) if os.path.exists(output_file) else Document()
     
     temp_dir = "temp_files"
-    files = sorted([f for f in os.listdir(temp_dir) if f.endswith(".docx") and f.startswith("18")],
-                   key=lambda x: re.findall(r'\d{4}-\d{2}', x))
+    files = sorted(
+        [f for f in os.listdir(temp_dir) if f.endswith(".docx") and f.startswith("18")],
+        key=lambda x: re.findall(r'\d{4}-\d{2}', x)
+    )
     
     for filename in files:
         file_path = os.path.join(temp_dir, filename)
@@ -65,12 +70,11 @@ def process_docx_files():
         # Format filename with year
         year_match = re.findall(r'\d{4}-\d{2}', filename)
         year = year_match[0] if year_match else "Unknown"
-        heading = f"{filename} ({year})"
         
-        # Add an empty line above the existing paragraph
+        # Add a blank line for spacing
         output_doc.add_paragraph()
-
-        # Add content to the document
+        
+        # Add heading
         para = output_doc.add_paragraph(f"Class: {course_info['class_semester']} Subject: {course_info['course_code']}")
         for run in para.runs:
             run.bold = True
@@ -88,10 +92,25 @@ def process_docx_files():
                     new_row[i].text = cell
         else:
             output_doc.add_paragraph("Revised CO-PO Mapping table not found").italic = True
-        
-    
-    # Save and open the final document
-    output_file = "output.docx"
+
+    # Save document
     output_doc.save(output_file)
     print(f"\nReport saved: {output_file}")
+    
+    # Open document
+    open_document(output_file)
 
+def open_document(file_path):
+    """Opens a document in a platform-independent way."""
+    import platform
+    system = platform.system()
+    
+    if system == "Windows":
+        os.startfile(file_path)
+    elif system == "Darwin":  # macOS
+        os.system(f"open \"{file_path}\"")
+    elif system == "Linux":
+        os.system(f"xdg-open \"{file_path}\"")
+
+# Run the function
+process_docx_files()

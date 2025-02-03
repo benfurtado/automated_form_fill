@@ -8,13 +8,16 @@ TEMP_DIR = "temp_files"  # Temporary directory path
 def CO_Table():
     # List all .docx files in the TEMP_DIR
     file_names = [f for f in os.listdir(TEMP_DIR) if f.startswith("18") and f.endswith(".docx")]
-    # Create a new document to accumulate content from all files
-    new_doc = Document('output.docx')
 
-    for file_path in file_names:
+    # Create a new document to accumulate content from all files
+    output_file = "output.docx"
+    new_doc = Document(output_file)
+
+    for file_name in file_names:
         # Open the current document
-        print(file_path)
-        doc = Document(TEMP_DIR + "\\" + file_path)
+        print(file_name)
+        file_path = os.path.join(TEMP_DIR, file_name)  # Cross-platform path handling
+        doc = Document(file_path)
 
         for paragraph in doc.paragraphs:
             if paragraph.text.strip():  # Ignore empty paragraphs
@@ -32,16 +35,12 @@ def CO_Table():
             run.bold = True
             run.font.size = Pt(14)  # Adjust the size to your preference, e.g., 14 points
         # Center-align the paragraph
-        para.alignment = 1  # 1 corresponds to center alignment
-
-
-
-
-
+        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
 
         # Add a table for course outcomes
         new_table = new_doc.add_table(rows=0, cols=5)
         new_table.style = 'Table Grid'
+
         # Add a header row to the new table
         header_row = new_table.add_row()
         header_row.cells[0].text = "Course Code"
@@ -52,9 +51,9 @@ def CO_Table():
         # Iterate through tables in the document
         for table in doc.tables:
             if "Course Outcomes" in table.cell(0, 0).text:  # Check for "Course Outcomes" in the first cell
-                if course_code in table.cell(0, 1).text:  # Check for "MEC 701" in the second cell
+                if course_code in table.cell(0, 1).text:  # Check for the course code
                     cell_text = table.cell(0, 1).text  # Get the text from the cell
-                    for i in range(1, 7):  # Loop through patterns MEC 701.1 to MEC 701.6
+                    for i in range(1, 7):  # Loop through patterns e.g., MEC 701.1 to MEC 701.6
                         pattern = f"{course_code}.{i}"
                         if pattern in cell_text:
                             # Extract text associated with the current pattern
@@ -83,5 +82,20 @@ def CO_Table():
         new_doc.add_paragraph("")  # Second blank line below the table
 
     # Save everything into one document
-    output_file = 'output.docx'
     new_doc.save(output_file)
+
+    # Open the output file cross-platform
+    open_document(output_file)
+
+def open_document(file_path):
+    """Opens a document in a platform-independent way."""
+    import platform
+    system = platform.system()
+    
+    if system == "Windows":
+        os.startfile(file_path)
+    elif system == "Darwin":  # macOS
+        os.system(f"open {file_path}")
+    elif system == "Linux":
+        os.system(f"xdg-open {file_path}")
+
